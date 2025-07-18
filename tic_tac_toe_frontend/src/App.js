@@ -1,93 +1,124 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './App.css';
-
-// PUBLIC_INTERFACE
-const Square = ({ value, onClick }) => (
-  <button className="square" onClick={onClick}>
-    {value}
-  </button>
-);
+import Board from './components/Board';
+import Dice from './components/Dice';
 
 // PUBLIC_INTERFACE
 function App() {
-  const [board, setBoard] = useState(Array(9).fill(null));
-  const [xIsNext, setXIsNext] = useState(true);
-  const [scores, setScores] = useState({ X: 0, O: 0 });
+  const [players, setPlayers] = useState([
+    { name: 'P1', position: 0, color: '#1976d2' },
+    { name: 'P2', position: 0, color: '#f44336' }
+  ]);
+  
+  const [currentPlayer, setCurrentPlayer] = useState(0);
+  const [diceValue, setDiceValue] = useState(1);
+  const [isRolling, setIsRolling] = useState(false);
+  const [gameWon, setGameWon] = useState(false);
 
-  // Calculate winner
-  const calculateWinner = (squares) => {
-    const lines = [
-      [0, 1, 2], [3, 4, 5], [6, 7, 8], // rows
-      [0, 3, 6], [1, 4, 7], [2, 5, 8], // columns
-      [0, 4, 8], [2, 4, 6] // diagonals
-    ];
+  const snakes = [
+    { start: 98, end: 28 },
+    { start: 95, end: 75 },
+    { start: 92, end: 88 },
+    { start: 83, end: 22 },
+    { start: 69, end: 33 },
+    { start: 64, end: 36 },
+    { start: 59, end: 17 }
+  ];
 
-    for (let line of lines) {
-      const [a, b, c] = line;
-      if (squares[a] && squares[a] === squares[b] && squares[a] === squares[c]) {
-        return squares[a];
-      }
-    }
-    return null;
+  const ladders = [
+    { start: 2, end: 38 },
+    { start: 7, end: 14 },
+    { start: 8, end: 31 },
+    { start: 15, end: 26 },
+    { start: 21, end: 42 },
+    { start: 28, end: 84 },
+    { start: 36, end: 44 },
+    { start: 51, end: 67 },
+    { start: 78, end: 98 },
+    { start: 71, end: 91 }
+  ];
+
+  const rollDice = () => {
+    if (isRolling || gameWon) return;
+    
+    setIsRolling(true);
+    const newValue = Math.floor(Math.random() * 6) + 1;
+    setDiceValue(newValue);
+
+    setTimeout(() => {
+      movePlayer(newValue);
+      setIsRolling(false);
+    }, 1000);
   };
 
-  // Handle click on square
-  const handleClick = (i) => {
-    const boardCopy = [...board];
-    
-    // Return if square is filled or game is won
-    if (calculateWinner(boardCopy) || boardCopy[i]) return;
-    
-    boardCopy[i] = xIsNext ? 'X' : 'O';
-    setBoard(boardCopy);
-    
-    const winner = calculateWinner(boardCopy);
-    if (winner) {
-      setScores(prev => ({
-        ...prev,
-        [winner]: prev[winner] + 1
-      }));
+  const movePlayer = (steps) => {
+    const player = players[currentPlayer];
+    let newPosition = player.position + steps;
+
+    // Check for snakes
+    const snake = snakes.find(s => s.start === newPosition);
+    if (snake) {
+      newPosition = snake.end;
     }
-    
-    setXIsNext(!xIsNext);
+
+    // Check for ladders
+    const ladder = ladders.find(l => l.start === newPosition);
+    if (ladder) {
+      newPosition = ladder.end;
+    }
+
+    // Ensure position doesn't exceed board size
+    if (newPosition > 99) {
+      newPosition = player.position;
+    }
+
+    // Update player position
+    const updatedPlayers = [...players];
+    updatedPlayers[currentPlayer] = { ...player, position: newPosition };
+    setPlayers(updatedPlayers);
+
+    // Check for win
+    if (newPosition === 99) {
+      setGameWon(true);
+      return;
+    }
+
+    // Switch to next player
+    setCurrentPlayer(currentPlayer === 0 ? 1 : 0);
   };
 
-  // Reset game
   const resetGame = () => {
-    setBoard(Array(9).fill(null));
-    setXIsNext(true);
+    setPlayers(players.map(player => ({ ...player, position: 0 })));
+    setCurrentPlayer(0);
+    setDiceValue(1);
+    setGameWon(false);
   };
-
-  const winner = calculateWinner(board);
-  const isDraw = !winner && board.every(square => square !== null);
-  const status = winner 
-    ? `Winner: ${winner}` 
-    : isDraw 
-    ? "It's a draw!" 
-    : `Next player: ${xIsNext ? 'X' : 'O'}`;
 
   return (
     <div className="App">
-      <div className="game-status">{status}</div>
-      
-      <div className="score-board">
-        <div className="score-item">X: {scores.X}</div>
-        <div className="score-item">O: {scores.O}</div>
+      <div className="game-status">
+        {gameWon 
+          ? `Player ${players[currentPlayer].name} wins!` 
+          : `Current Player: ${players[currentPlayer].name}`}
       </div>
-      
-      <div className="board">
-        {board.map((square, i) => (
-          <Square
-            key={i}
-            value={square}
-            onClick={() => handleClick(i)}
-          />
-        ))}
+
+      <Board 
+        positions={players.map(p => p.position)}
+        players={players}
+        snakes={snakes}
+        ladders={ladders}
+      />
+
+      <div className="game-controls">
+        <Dice 
+          value={diceValue}
+          rolling={isRolling}
+          onRoll={rollDice}
+        />
+        <button className="reset-button" onClick={resetGame}>
+          Reset Game
+        </button>
       </div>
-      
-      <button className="reset-button" onClick={resetGame}>
-        Reset Game
-      </button>
     </div>
   );
 }
